@@ -442,6 +442,37 @@ extern "C" {
                              double * dNdz,
                              double * dln_dNdz_dz);
 
+
+    /* bh addition */
+    /* read from a z,dn1dz,dn2dz... file and calculate the splined value at some redshift */
+    double read_column_dndzfile_interpolate(
+      struct perturbs * ppt,
+      int columnNumber,
+      double redshift
+    );
+
+    //read Dn/Dz from a file  
+    double read_zfile_interpv1(
+      struct perturbs * ppt,
+      int columnNumber,
+      double redshift
+    );  
+
+     //read min max z from a file with Dn/Dz
+    double read_zfile_minmaxv1(
+      struct perturbs * ppt,
+      int columnNumber,
+      char key
+      );
+
+     // convert string to double
+    double run_strtod (
+    const char * input
+    );
+
+    /* bh ----- */
+    
+
   int transfer_selection_sampling(
                                   struct precision * ppr,
                                   struct background * pba,

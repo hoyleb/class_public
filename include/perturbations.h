@@ -66,7 +66,12 @@ enum possible_gauges {
  * maximum number and types of selection function (for bins of matter density or cosmic shear)
  */
 #define _SELECTION_NUM_MAX_ 100
-enum selection_type {gaussian,tophat,dirac};
+
+ /* bh addition */
+enum selection_type {gaussian,tophat,dirac,yourfile};
+//@}
+/* bh ---- */
+
 
 //@}
 
@@ -152,6 +157,20 @@ struct perturbs
   enum selection_type selection;                /**< type of selection functions */
   double selection_mean[_SELECTION_NUM_MAX_]; /**< centers of selection functions */
   double selection_width[_SELECTION_NUM_MAX_];  /**< widths of selection functions */
+  
+  /* bh addition */
+  char selection_filename[_SELECTION_NUM_MAX_];  
+
+  double s_bias_arr[_SELECTION_NUM_MAX_];  /**< s_bias for each distribution */
+  double bias0_arr[_SELECTION_NUM_MAX_];
+  double bias1_arr[_SELECTION_NUM_MAX_];
+  double biask_arr[_SELECTION_NUM_MAX_];
+
+  //stored as z0,z1,z2...Dn1/Dz0,Dn1/Dz2...,Dn2/Dz0,dN2/dz1...
+  double redshiftDnDz[_SELECTION_NUM_MAX_*10000];
+  int numRedshifts;
+  /* bh ------- */
+
 
   int switch_sw;   /**< in temperature calculation, do we want to include the intrinsic temperature + Sachs Wolfe term? */
   int switch_eisw; /**< in temperature calculation, do we want to include the early integrated Sachs Wolfe term? */

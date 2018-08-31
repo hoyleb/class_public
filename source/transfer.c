@@ -58,6 +58,111 @@
  * @return the error status
  */
 
+
+/* bh addition */ 
+double read_zfile_interpv1(
+    struct perturbs * ppt,
+    int columnNumber,
+    double redshift
+  ){
+
+  double bestz=0;
+  double bestDnDz=0;
+  double bestABSz =1000;
+  double z;
+  double DnDz;
+  double ABSz;
+  int i;
+
+  for (i=0; i<ppt->numRedshifts; i++){  
+    z= ppt->redshiftDnDz[i];
+    DnDz = ppt->redshiftDnDz[(columnNumber+1)*ppt->numRedshifts+i];
+
+    ABSz = fabs(z-redshift);
+
+    if (ABSz < bestABSz){
+      bestz = z;
+      bestDnDz = DnDz;
+      bestABSz = ABSz;
+    }
+  }
+
+  return bestDnDz;
+}
+/* bh ben function to calculate the min max z value that has some dn/dz at this z for column = bin
+*/
+double run_strtod (const char * input)
+{
+    double output;
+    char * end;
+
+    output = strtod (input, & end);
+
+    if (end == input) {
+        printf (" is not a valid number.\n");
+        return _FALSE_;
+    }
+    return output;
+}
+
+
+double read_zfile_minmaxv1(
+    struct perturbs * ppt,
+    int columnNumber,
+    char key
+  ){
+
+  double minz=999;
+  double maxz=1000;
+  double PrevDnDz=0;
+  double z;
+  double DnDz;
+  int canAssignMin=1;
+  int canAssignMax=0;
+  int wasMaxAssignd=0;
+  int i;
+
+  for (i=0; i<ppt->numRedshifts; i++){  
+    z= ppt->redshiftDnDz[i];
+    DnDz = ppt->redshiftDnDz[(columnNumber+1)*ppt->numRedshifts+i];
+
+    //logic to determine if I can assign a min or a max z to this dataset
+    if (i==0){
+      minz = z;
+      if (DnDz >0.00000){
+        canAssignMin=0;
+      }
+    }
+    //allows DnDz==0 and then to set maxium again if DnDz>0; clever ben.
+    if (DnDz < 0.00000001){
+      if (canAssignMin==1){
+        minz = z;
+      }
+      if (canAssignMax==1){
+        maxz = z;
+        canAssignMax=0;
+        wasMaxAssignd =1;
+      }
+    } else {
+      canAssignMin=0;
+      canAssignMax=1;
+    }
+  }
+
+  //make max was never assigned, then set it to the largest value
+  //here
+  if (wasMaxAssignd==0){
+    maxz = z;
+  }
+    //printf("1967 transfer.c Zmin %f Zmax %f Bin %d z: %f Nz: %d i: %d\n",minz,maxz,columnNumber,z,ppt->numRedshifts,i);
+  if (key=='m'){
+    return minz;  
+  } else {
+    return maxz;  
+  }
+}
+/* bh ---*/
+
 int transfer_functions_at_q(
                             struct transfers * ptr,
                             int index_md,
@@ -2129,6 +2234,11 @@ int transfer_sources(
   double dNdz;
   double dln_dNdz_dz;
 
+ /*bh addition */
+  double bias01k;
+  /* end bh addition */
+
+
   /** - in which cases are perturbation and transfer sources are different?
      I.e., in which case do we need to multiply the sources by some
      background and/or window function, and eventually to resample it,
@@ -2381,6 +2491,10 @@ int transfer_sources(
               (_index_tt_in_range_(ptr->index_tt_d1,      ppt->selection_num, ppt->has_nc_rsd)) ||
               (_index_tt_in_range_(ptr->index_tt_nc_g2,   ppt->selection_num, ppt->has_nc_gr))) {
 
+            /*bh mod */
+            z = pba->a_today/pvecback[pba->index_bg_a]-1.;
+            /* end bh */
+
             if((ptr->has_nz_evo_file == _TRUE_) || (ptr->has_nz_evo_analytic == _TRUE_)){
 
               f_evo = 2./pvecback[pba->index_bg_H]/pvecback[pba->index_bg_a]/tau0_minus_tau[index_tau]
@@ -2441,8 +2555,28 @@ int transfer_sources(
              regulated anyway by Bessel).
           */
 
-          if (_index_tt_in_range_(ptr->index_tt_density, ppt->selection_num, ppt->has_nc_density))
-            rescaling = ptr->selection_bias[bin]*selection[index_tau];
+          if (_index_tt_in_range_(ptr->index_tt_density, ppt->selection_num, ppt->has_nc_density)){
+
+            //original
+            //rescaling = ptr->selection_bias[bin]*selection[index_tau];
+
+            z = pba->a_today/pvecback[pba->index_bg_a]-1.;
+
+            /* bh modification*/
+            bias01k =  pow( ptr->k[index_md][index_q], ppt->biask_arr[bin] ) * ( ppt->bias0_arr[bin]  + ppt->bias1_arr[bin] *(1-(1.0/(1+z))) );
+           //printf("selection[index_tau] %f, index_tau %d \n", selection[index_tau],index_tau );
+           //printf("2572 transfer.c bias bias0 %f bias1 %f  biask %f bin %d z=%f k= %f bias01k=%f selection[index_tau]=%f\n",ppt->bias0_arr[bin] ,ppt->bias1_arr[bin] ,ppt->biask_arr[bin] ,bin, z, ptr->k[index_md][index_q], bias01k, selection[index_tau]);
+           /*if (z > 0.1) {
+            printf("2538 transfer.c power test %f  k= %f , bias01k %f z=%f \n ",pow(2.0,2.0), ptr->k[index_md][index_q] ,bias01k, z);
+            } */
+
+            /*bh addition */
+            /* now with k and z dependence to bias */
+            //rescaling = ptr->bias*selection[index_tau];
+            rescaling = bias01k*selection[index_tau];
+          }
+            
+
 
           /* redshift space distortion source = - [- (dz/dtau) W(z)] * (k/H) * theta(k,tau) */
 
@@ -2865,6 +2999,11 @@ int transfer_selection_function(
   double dln_dNdz_dz;
   int last_index;
 
+ /* bh addition */
+  double DnDz;
+  /* bh --- */
+
+
   /* trivial dirac case */
   if (ppt->selection==dirac) {
 
@@ -2927,6 +3066,18 @@ int transfer_selection_function(
     return _SUCCESS_;
   }
 
+ /* bh addition */
+  /* your file case. Read from this file, use bin to determin the column*/
+  if (ppt->selection == yourfile) {
+      //interpolate to get dn/dz at this z
+    DnDz = read_zfile_interpv1(ppt,bin,z);
+    *selection = DnDz;  
+    //printf("%lf, %lf, %lf \n", *selection, DnDz, z);
+    return _SUCCESS_;
+  }
+
+  /* bh --- */
+
   /* top-hat case, with smoothed edges. The problem with sharp edges
      is that the final result will be affected by random
      noise. Indeed, the values of k at which the transfer functions
@@ -2986,6 +3137,10 @@ int transfer_selection_function(
 
   return _SUCCESS_;
 }
+
+
+
+
 
 /**
  * Analytic form for dNdz distribution, from arXiv:1004.4640
@@ -3245,6 +3400,11 @@ int transfer_selection_times(
   /* a value of redshift */
   double z=0.;
 
+  /* bh addition a*/
+  double zmin;
+  double zmax;
+  /* -- bh addition */
+
   /* lower edge of time interval for this bin */
   /* the few lines below should be consistent with their counterpart in input.c */
   if (ppt->selection==gaussian) {
@@ -3256,6 +3416,14 @@ int transfer_selection_times(
   if (ppt->selection==dirac) {
     z = ppt->selection_mean[bin];
   }
+
+  /* bh addition */
+  if (ppt->selection==yourfile) {
+    //read file, get min max z for this column=[bin] where dn/dz =!0
+    z = read_zfile_minmaxv1(ppt,bin,'x');
+    zmin=z;     
+  } 
+
 
   class_call(background_tau_of_z(pba,
                                  z,
@@ -3275,6 +3443,15 @@ int transfer_selection_times(
     z = ppt->selection_mean[bin];
   }
 
+  /* bh addition */
+  if (ppt->selection==yourfile) {
+    
+     //read file, get  max z for this column=[bin] where dn/dz =!0
+     z = read_zfile_minmaxv1(ppt,bin,'m');
+     zmax = z;
+  }
+  /* bh ----*/
+  
   class_call(background_tau_of_z(pba,
                                  z,
                                  tau_max),

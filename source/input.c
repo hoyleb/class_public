@@ -14,6 +14,94 @@
  * through a 'file_content' structure.
  */
 
+/* bh addition */
+//read in a file and populate a dndz arrays
+void populate_dndz(struct perturbs *ppt){
+
+//nbins 
+
+ //static const char filename[] = ppt->selection_filename;
+  //get file size
+    FILE *file = fopen ( ppt->selection_filename, "r" );
+    int numlines=0;
+    int cnt=0;
+    char line [30000];
+
+    if ( file != NULL ){    
+      while ( fgets ( line, sizeof line, file ) != NULL ) /* read a line */
+      {
+        numlines++;
+      }
+    }
+    fclose(file);
+    
+    //store number of lines in file
+    ppt->numRedshifts=numlines;
+
+    //populat the redshift and DnDz array
+    FILE *file1 = fopen ( ppt->selection_filename, "r" );
+    if ( file1 != NULL ){    
+
+      while ( fgets ( line, sizeof line, file1 ) != NULL ) /* read a line */
+      {
+        char ** res  = NULL;
+        char *  p    = strtok (line, " ");
+        int n_spaces = 0, i;
+         /* split string and append tokens to 'res' */
+        while (p) {
+          res = realloc (res, sizeof (char*) * ++n_spaces);
+
+          if (res == NULL)
+          exit (-1); /* memory allocation failed */
+
+          res[n_spaces-1] = p;
+          p = strtok (NULL, " ");
+        }
+
+        /* realloc one extra element for the last NULL */
+        res = realloc (res, sizeof (char*) * (n_spaces+1));
+        res[n_spaces] = 0;
+
+        //store as z0,z1,z2...Dn1/Dz0,Dn1/Dz1...,Dn2/Dz0,dN2/dz1...
+        for (i=0; i<ppt->selection_num+1; i++){  
+           //printf("60 input.c int %d interger %d filevalue %f \n",i,(i*ppt->numRedshifts+cnt),run_strtod(res[i]));
+          ppt->redshiftDnDz[i*ppt->numRedshifts+cnt] = run_strtod(res[i]);
+          //printf("ppt->redshiftDnDz[i*ppt->numRedshifts+cnt]  %f",ppt->redshiftDnDz[i*ppt->numRedshifts+cnt]); 
+        }
+         cnt++;
+       }
+      fclose ( file1 );
+
+      /*
+      //now calculate the 1st and second derivatives
+      for (i=1; i<ppt->selection_num+1; i++){ 
+        for (j=1;j<ppt->numRedshifts-1;j++){
+          ppt->redshiftdDnDz[i*ppt->numRedshifts+j] = (ppt->redshiftDnDz[i*ppt->numRedshifts+j+1] - ppt->redshiftDnDz[i*ppt->numRedshifts+j-1])/( ppt->redshiftDnDz[j+1] - ppt->redshiftDnDz[j-1]);
+        }
+
+        //first and last elements
+        ppt->redshiftdDnDz[i*ppt->numRedshifts+0] = ppt->redshiftdDnDz[i*ppt->numRedshifts+1];
+        ppt->redshiftdDnDz[i*ppt->numRedshifts+ppt->numRedshifts-1] = ppt->redshiftdDnDz[i*ppt->numRedshifts+ppt->numRedshifts-2] ;
+
+        //sec deriv
+        for (j=1;j<ppt->numRedshifts-1;j++){
+          ppt->redshiftddDnDz[i*ppt->numRedshifts+j] = (ppt->redshiftdDnDz[i*ppt->numRedshifts+j+1] - ppt->redshiftdDnDz[i*ppt->numRedshifts+j-1])/( ppt->redshiftdDnDz[j+1] - ppt->redshiftdDnDz[j-1]);
+        }
+
+        //first and last elements
+        ppt->redshiftddDnDz[i*ppt->numRedshifts+0] = ppt->redshiftddDnDz[i*ppt->numRedshifts+1];
+        ppt->redshiftddDnDz[i*ppt->numRedshifts+ppt->numRedshifts-1] = ppt->redshiftddDnDz[i*ppt->numRedshifts+ppt->numRedshifts-2] ;
+      }
+      */
+   }
+   else
+   {
+      perror ( ppt->selection_filename ); /* why didn't the file open? */
+   }
+};
+
+/*  bh --- */
+
 int input_init_from_arguments(
                               int argc,
                               char **argv,
@@ -2179,6 +2267,12 @@ int input_read_parameters(
       }
       else if (strstr(string1,"dirac") != NULL) {
         ppt->selection=dirac;
+      } 
+      else if (strstr(string1,"yourfile") != NULL) {
+        /* bh addition */  
+        ppt->selection=yourfile;
+        //printf("\n here! \n"); 
+        /* bh --- */ 
       }
       else {
         class_stop(errmsg,"In selection function input: type %s is unclear",string1);
@@ -2248,7 +2342,123 @@ int input_read_parameters(
         }
         free(pointer1);
       }
+  /* bh addition */
+      class_call(parser_read_list_of_doubles(pfc,
+               "selection_bias0_arr",
+               &(int1),
+               &(pointer1),
+               &flag1,
+               errmsg),
+         errmsg,
+         errmsg);
+      
+      if ((flag1 == _TRUE_) && (int1>0)) {
+        
+        if (int1==1) {
+          for (i=0; i<ppt->selection_num; i++) {
+            ppt->bias0_arr[i] = pointer1[0];
+          } 
+        } else if (int1==ppt->selection_num) {
+          for (i=0; i<int1; i++) {
+            ppt->bias0_arr[i] = pointer1[i];
+            //printf("2320 input.c ppt->bias0_arr[i] %f for dndz %d \n", ppt->bias0_arr[i], i);
+          } 
+        } else {
+          class_stop(errmsg,
+         "In input for selection function, you asked for %d bin centers and you must provide the same number of bias0_arr =,,,",
+          int1);
+        }   
+        free(pointer1);
 
+      }
+       class_call(parser_read_list_of_doubles(pfc,
+               "selection_bias1_arr",
+               &(int1),
+               &(pointer1),
+               &flag1,
+               errmsg),
+         errmsg,
+         errmsg);
+    
+      if ((flag1 == _TRUE_) && (int1>0)) {
+  
+        if (int1==1) {
+          for (i=0; i<ppt->selection_num; i++) {
+            ppt->bias1_arr[i] = pointer1[0];
+          } 
+        } else if (int1==ppt->selection_num) {
+          for (i=0; i<int1; i++) {
+            ppt->bias1_arr[i] = pointer1[i];
+            //printf("2348 input.c ppt->bias1_arr[i] %f for dndz %d \n",ppt->bias1_arr[i],i);
+          } 
+        } else {
+          class_stop(errmsg,
+           "In input for selection function, you asked for %d bin centers and you must provide the same number of bias1_arr =,,,", int1);
+        }   
+        free(pointer1);
+
+      }
+
+       class_call(parser_read_list_of_doubles(pfc,
+               "selection_biask_arr",
+               &(int1),
+               &(pointer1),
+               &flag1,
+               errmsg),
+         errmsg,
+         errmsg);
+    
+      if ((flag1 == _TRUE_) && (int1>0)) {
+        
+
+        if (int1==1) {
+          for (i=0; i<ppt->selection_num; i++) {
+            ppt->biask_arr[i] = pointer1[0];
+          } 
+        } else if (int1==ppt->selection_num) {
+          for (i=0; i<int1; i++) {
+            ppt->biask_arr[i] = pointer1[i];
+            //printf("2375 input.c ppt->biask_arr[i] %f for dndz %d \n",ppt->biask_arr[i],i);
+
+          }
+        } else {
+          class_stop(errmsg,
+         "In input for selection function, you asked for %d bin centers and you must provide the same number of biask_arr =,,,", int1);
+        }   
+        free(pointer1);
+
+      }
+
+      if (ppt->selection==yourfile){
+        class_call(
+          parser_read_string(pfc,
+            "selection_filename",
+            &(string1),
+            &(flag1),
+            errmsg),
+            errmsg,
+            errmsg);
+
+        if (flag1 == _TRUE_) {
+          class_read_string("selection_filename",ppt->selection_filename);
+          //printf("2399 input.c %s \n",ppt->selection_filename); 
+          populate_dndz(ppt);
+
+          double zmax;
+          double zmin;
+
+          for (i=0; i<int1; i++) {
+            zmin = read_zfile_minmaxv1(ppt,i,'m');
+            zmax = read_zfile_minmaxv1(ppt,i,'x');
+
+            ppt->selection_mean[i]=(zmax+zmin)/2.0;
+            ppt->selection_width[i]= (zmax-zmin)/2.0;
+
+            //printf("2412 input.c zmax %f zmin %f  zmean %f zwidth %f bin %d\n",zmax,zmin,ppt->selection_mean[i],ppt->selection_width[i],i);
+          }
+        }
+      }
+      /* bh ---- */
       class_call(parser_read_list_of_doubles(pfc,
                                              "selection_bias",
                                              &(int1),
@@ -2403,6 +2613,13 @@ int input_read_parameters(
           if (ppt->selection==dirac) {
             z_max = ppt->selection_mean[bin];
           }
+          /* bh addition */
+          if (ppt->selection==yourfile) {
+            //read file, get min max z for this column=[bin] where dn/dz =!0
+            z_max = read_zfile_minmaxv1(ppt,bin,'x');
+            //printf("z_max %f \n",z_max);     
+          } 
+
           ppt->z_max_pk = MAX(ppt->z_max_pk,z_max);
         }
       }

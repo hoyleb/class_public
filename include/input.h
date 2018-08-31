@@ -227,6 +227,11 @@ extern "C" {
 
   int get_machine_precision(double * smallest_allowed_variation);
 
+  /* bh addition */
+  void populate_dndz(struct perturbs *ppt);
+  /* bh ----- */
+ 
+ 
   int class_fzero_ridder(int (*func)(double x, void *param, double *y, ErrorMsg error_message),
 			 double x1,
 			 double x2,
